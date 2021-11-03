@@ -1,0 +1,111 @@
+FROM nvidia/cuda:11.1-cudnn8-devel-ubuntu20.04
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND="noninteractive" apt-get install -y \
+    build-essential \
+    checkinstall \
+    cmake \
+    g++-multilib \
+    gfortran \
+    git \
+    libatlas-base-dev \
+    libavcodec-dev \
+    libavformat-dev \
+    libavresample-dev \
+    libboost-all-dev \
+    libeigen3-dev \
+    libfaac-dev \
+    libgoogle-glog-dev \
+    libgstreamer-plugins-base1.0-dev \
+    libgstreamer1.0-dev \
+    libgtk-3-dev \
+    libjpeg-dev \
+    libmp3lame-dev \
+    libpng-dev \
+    libswscale-dev \
+    libtheora-dev \
+    libtiff-dev \
+    libv4l-dev \
+    libvorbis-dev \
+    libx264-dev \
+    libxvidcore-dev \
+    pkg-config \
+    python3-dev \
+    python3-pip \
+    unzip \
+    wget \
+    x264 \
+    yasm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install FFMPEG+CUDA
+RUN cd /opt \
+    && git clone https://git.videolan.org/git/ffmpeg/nv-codec-headers.git \
+    && cd /opt/nv-codec-headers \
+    && make install
+
+RUN cd /opt \
+    && git clone https://git.ffmpeg.org/ffmpeg.git ffmpeg/ \
+    && cd /opt/ffmpeg \
+    && ./configure --enable-nonfree --enable-cuda-nvcc --enable-libnpp --extra-cflags=-I/usr/local/cuda/include --extra-ldflags=-L/usr/local/cuda/lib64 \
+    && make -j 8 \
+    && make install
+
+# Install numpy
+RUN ln -s /usr/bin/python3 /usr/bin/python \
+    && pip install numpy
+
+# Install OpenCV with CUDA
+ENV OPENCV_VERSION 4.5.1
+ENV OPENCV_REPO https://github.com/opencv
+ENV OPENCV_URL ${OPENCV_REPO}/opencv/archive/${OPENCV_VERSION}.zip
+ENV OPENCV_CONTRIB_URL ${OPENCV_REPO}/opencv_contrib/archive/${OPENCV_VERSION}.zip
+
+ENV PYTHON_EXECUTABLE /usr/bin/python
+ENV OPENCV_PYTHON3_INSTALL_PATH /usr/local/lib/python3.8/dist-packages
+ENV OPENCV_EXTRA_MODULES_PATH /opt/opencv_contrib/modules
+
+RUN wget -O /opt/opencv.zip $OPENCV_URL \
+    && wget -O /opt/opencv_contrib.zip $OPENCV_CONTRIB_URL \
+    && cd /opt \
+    && unzip opencv.zip \
+    && unzip opencv_contrib.zip \
+    && mv opencv-${OPENCV_VERSION} opencv \
+    && mv opencv_contrib-${OPENCV_VERSION} opencv_contrib \
+    && cd /opt/opencv \
+    && mkdir -p /opt/opencv/build
+
+RUN cd /opt/opencv/build \
+    && cmake -D CMAKE_BUILD_TYPE=RELEASE \
+    -D CMAKE_C_COMPILER=/usr/bin/gcc-9 \
+    -D CMAKE_INSTALL_PREFIX=/usr/local \
+    -D INSTALL_PYTHON_EXAMPLES=OFF \
+    -D INSTALL_C_EXAMPLES=OFF \
+    -D WITH_TBB=ON \
+    -D WITH_CUDA=ON \
+    -D BUILD_opencv_cudacodec=OFF \
+    -D BUILD_SHARED_LIBS=OFF \
+    -D ENABLE_FAST_MATH=1 \
+    -D CUDA_FAST_MATH=1 \
+    -D WITH_CUBLAS=1 \
+    -D WITH_V4L=ON \
+    -D WITH_QT=OFF \
+    -D WITH_OPENGL=ON \
+    -D WITH_GSTREAMER=ON \
+    -D OPENCV_GENERATE_PKGCONFIG=ON \
+    -D OPENCV_PC_FILE_NAME=opencv.pc \
+    -D OPENCV_ENABLE_NONFREE=ON \
+    -D WITH_CUDNN=ON \
+    -D OPENCV_DNN_CUDA=ON \
+    -D HAVE_opencv_python3=ON \
+    -D ENABLE_PRECOMPILED_HEADERS=OFF \
+    -D OPENCV_PYTHON3_INSTALL_PATH=${OPENCV_PYTHON3_INSTALL_PATH} \
+    -D OPENCV_EXTRA_MODULES_PATH="${OPENCV_EXTRA_MODULES_PATH}" \
+    -D PYTHON_EXECUTABLE=${PYTHON_EXECUTABLE} \
+    -D CUDA_ARCH_BIN="7.5 8.0 8.6" \
+    -D BUILD_TIFF=OFF \
+    -D BUILD_EXAMPLES=OFF .. \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig \
+    && rm -rf /opt/opencv /opt/opencv.zip /opt/opencv_contrib /opt/opencv_contrib.zip

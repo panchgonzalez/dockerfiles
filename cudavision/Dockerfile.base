@@ -38,19 +38,6 @@ RUN apt-get update \
     yasm \
     && rm -rf /var/lib/apt/lists/*
 
-# Install FFMPEG+CUDA
-RUN cd /opt \
-    && git clone https://git.videolan.org/git/ffmpeg/nv-codec-headers.git \
-    && cd /opt/nv-codec-headers \
-    && make install
-
-RUN cd /opt \
-    && git clone https://git.ffmpeg.org/ffmpeg.git ffmpeg/ \
-    && cd /opt/ffmpeg \
-    && ./configure --enable-nonfree --enable-cuda-nvcc --enable-libnpp --extra-cflags=-I/usr/local/cuda/include --extra-ldflags=-L/usr/local/cuda/lib64 \
-    && make -j 8 \
-    && make install
-
 # Install numpy
 RUN ln -s /usr/bin/python3 /usr/bin/python \
     && pip install numpy
@@ -83,7 +70,7 @@ RUN cd /opt/opencv/build \
     -D INSTALL_C_EXAMPLES=OFF \
     -D WITH_TBB=ON \
     -D WITH_CUDA=ON \
-    -D BUILD_opencv_cudacodec=OFF \
+    -D BUILD_opencv_cudacodec=ON \
     -D BUILD_SHARED_LIBS=OFF \
     -D ENABLE_FAST_MATH=1 \
     -D CUDA_FAST_MATH=1 \
@@ -109,3 +96,19 @@ RUN cd /opt/opencv/build \
     && make install \
     && ldconfig \
     && rm -rf /opt/opencv /opt/opencv.zip /opt/opencv_contrib /opt/opencv_contrib.zip
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND="noninteractive" apt-get install -yq --reinstall ca-certificates
+
+# Install FFMPEG+CUDA
+RUN cd /opt \
+    && git clone https://git.videolan.org/git/ffmpeg/nv-codec-headers.git \
+    && cd /opt/nv-codec-headers \
+    && make install
+
+RUN cd /opt \
+    && git clone https://git.ffmpeg.org/ffmpeg.git ffmpeg/ \
+    && cd /opt/ffmpeg \
+    && ./configure --enable-nonfree --enable-cuda-nvcc --enable-libnpp --extra-cflags=-I/usr/local/cuda/include --extra-ldflags=-L/usr/local/cuda/lib64 \
+    && make -j 8 \
+    && make install
